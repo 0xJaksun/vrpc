@@ -73,7 +73,6 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
   function version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
     spec: { input: I; output: O; up: (oldInput: z.infer<I>) => unknown }
-    // eslint-disable-next-line @typescript-eslint/ban-types
   ): VersionedBuilder<{}, O>;
   function version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
