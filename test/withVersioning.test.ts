@@ -7,6 +7,8 @@ describe("withVersioning chained .version()", () => {
   const t = initTRPC.create();
   const procedure = withVersioning(t.procedure);
 
+  const x = t.procedure.input(z.object({})).query(() => {});
+
   test("chains a single .version() into .mutation()", () => {
     const createUser = procedure
       .version("v1", {
