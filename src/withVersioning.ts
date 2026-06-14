@@ -8,13 +8,12 @@ import type { z } from "zod";
 type AnyProcedureBuilder = ReturnType<(typeof initTRPC)["create"]>["procedure"];
 
 /** Shape passed to `VersionedMutation` / `VersionedQuery`:
- *  - `inputs`: every ACCEPTED version's input shape (clients can pin to any)
- *  - `outputs`: every TERMINAL version's output shape
- *  - `terminalVersions`: union of terminal version names
+ *  - `versions`: each version's declared input + output (terminal entries
+ *    deliver this output; non-terminal entries declare what they wanted).
+ *  - `terminalVersions`: union of version names the handler discriminates on.
  */
 export interface VersionedConfig {
-  inputs: Record<string, unknown>;
-  outputs: Record<string, unknown>;
+  versions: Record<string, { input: unknown; output: unknown }>;
   terminalVersions: string;
 }
 
@@ -22,11 +21,11 @@ export interface VersionedConfig {
  *  `TRPCMutationProcedure` so we never reference unstable internals. */
 export interface VersionedMutation<Config extends VersionedConfig>
   extends TRPCMutationProcedure<{
-    input: Config["inputs"][keyof Config["inputs"]];
-    output: Config["outputs"][keyof Config["outputs"]];
+    input: Config["versions"][keyof Config["versions"]]["input"];
+    output: Config["versions"][Config["terminalVersions"] &
+      keyof Config["versions"]]["output"];
     meta: {
-      inputs: Config["inputs"];
-      outputs: Config["outputs"];
+      versions: Config["versions"];
       terminalVersions: Config["terminalVersions"];
     };
   }> {}
@@ -34,11 +33,11 @@ export interface VersionedMutation<Config extends VersionedConfig>
 /** A versioned query. */
 export interface VersionedQuery<Config extends VersionedConfig>
   extends TRPCQueryProcedure<{
-    input: Config["inputs"][keyof Config["inputs"]];
-    output: Config["outputs"][keyof Config["outputs"]];
+    input: Config["versions"][keyof Config["versions"]]["input"];
+    output: Config["versions"][Config["terminalVersions"] &
+      keyof Config["versions"]]["output"];
     meta: {
-      inputs: Config["inputs"];
-      outputs: Config["outputs"];
+      versions: Config["versions"];
       terminalVersions: Config["terminalVersions"];
     };
   }> {}
@@ -55,71 +54,72 @@ type VersionSpec<I extends z.ZodType, O extends z.ZodType> = {
 type Prettify<T> = { [K in keyof T]: T[K] } & {};
 
 /** Discriminated `{ input, version }` union over terminal versions. */
-type HandlerArgs<Terminals extends Record<string, unknown>> = {
-  [K in keyof Terminals & string]: { input: Terminals[K]; version: K };
-}[keyof Terminals & string];
+type HandlerArgs<
+  Versions extends Record<string, { input: unknown; output: unknown }>,
+  TerminalNames extends string,
+> = {
+  [K in TerminalNames & keyof Versions]: {
+    input: Versions[K]["input"];
+    version: K;
+  };
+}[TerminalNames & keyof Versions];
 
 type VersionedBuilder<
-  Accepted extends Record<string, unknown>,
-  Terminals extends Record<string, unknown>,
-  TerminalOutputs extends Record<string, unknown>,
-  O extends z.ZodType
+  Versions extends Record<string, { input: unknown; output: unknown }>,
+  TerminalNames extends string,
+  O extends z.ZodType,
 > = {
-  // With `up` → non-terminal: added to Accepted only.
+  // With `up` → non-terminal: added to Versions only.
   version<N extends string, I2 extends z.ZodType, O2 extends z.ZodType>(
     name: N,
-    spec: { input: I2; output: O2; up: (oldInput: z.infer<I2>) => unknown }
+    spec: { input: I2; output: O2; up: (oldInput: z.infer<I2>) => unknown },
   ): VersionedBuilder<
-    Accepted & { [K in N]: z.infer<I2> },
-    Terminals,
-    TerminalOutputs,
+    Versions & { [K in N]: { input: z.infer<I2>; output: z.infer<O2> } },
+    TerminalNames,
     O2
   >;
-  // No `up` → terminal: added to Accepted, Terminals, and TerminalOutputs.
+  // No `up` → terminal: added to Versions and TerminalNames.
   version<N extends string, I2 extends z.ZodType, O2 extends z.ZodType>(
     name: N,
-    spec: { input: I2; output: O2 }
+    spec: { input: I2; output: O2 },
   ): VersionedBuilder<
-    Accepted & { [K in N]: z.infer<I2> },
-    Terminals & { [K in N]: z.infer<I2> },
-    TerminalOutputs & { [K in N]: z.infer<O2> },
+    Versions & { [K in N]: { input: z.infer<I2>; output: z.infer<O2> } },
+    TerminalNames | N,
     O2
   >;
   mutation(
-    handler: (args: HandlerArgs<Terminals>) => z.infer<O> | Promise<z.infer<O>>
+    handler: (
+      args: HandlerArgs<Versions, TerminalNames>,
+    ) => z.infer<O> | Promise<z.infer<O>>,
   ): VersionedMutation<{
-    inputs: Prettify<Accepted>;
-    outputs: Prettify<TerminalOutputs>;
-    terminalVersions: keyof Terminals & string;
+    versions: Prettify<Versions>;
+    terminalVersions: TerminalNames;
   }>;
   query(
-    handler: (args: HandlerArgs<Terminals>) => z.infer<O> | Promise<z.infer<O>>
+    handler: (
+      args: HandlerArgs<Versions, TerminalNames>,
+    ) => z.infer<O> | Promise<z.infer<O>>,
   ): VersionedQuery<{
-    inputs: Prettify<Accepted>;
-    outputs: Prettify<TerminalOutputs>;
-    terminalVersions: keyof Terminals & string;
+    versions: Prettify<Versions>;
+    terminalVersions: TerminalNames;
   }>;
 };
 
 export function withVersioning(procedure: AnyProcedureBuilder): {
   version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
-    spec: { input: I; output: O; up: (oldInput: z.infer<I>) => unknown }
+    spec: { input: I; output: O; up: (oldInput: z.infer<I>) => unknown },
   ): VersionedBuilder<
-    { [K in N]: z.infer<I> },
-    // eslint-disable-next-line @typescript-eslint/ban-types
-    {},
-    // eslint-disable-next-line @typescript-eslint/ban-types
-    {},
+    { [K in N]: { input: z.infer<I>; output: z.infer<O> } },
+    never,
     O
   >;
   version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
-    spec: { input: I; output: O }
+    spec: { input: I; output: O },
   ): VersionedBuilder<
-    { [K in N]: z.infer<I> },
-    { [K in N]: z.infer<I> },
-    { [K in N]: z.infer<O> },
+    { [K in N]: { input: z.infer<I>; output: z.infer<O> } },
+    N,
     O
   >;
 } {
@@ -127,7 +127,7 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
   // full version map attached as meta) extended with a chainable `.version`.
   function build<I extends z.ZodType, O extends z.ZodType>(
     versions: Record<string, unknown>,
-    latest: VersionSpec<I, O>
+    latest: VersionSpec<I, O>,
   ) {
     const built = procedure
       .input(latest.input)
@@ -136,31 +136,31 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
 
     const version = <
       N extends string,
-      S extends VersionSpec<z.ZodType, z.ZodType>
-    >(
-      name: N,
-      spec: S
-    ) => build({ ...versions, [name]: spec }, spec);
+      S extends VersionSpec<z.ZodType, z.ZodType>,
+    >(name: N, spec: S) => build({ ...versions, [name]: spec }, spec);
 
     return Object.assign(built, { version });
   }
 
   function version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
-    spec: { input: I; output: O; up: (oldInput: z.infer<I>) => unknown }
-  ): VersionedBuilder<{ [K in N]: z.infer<I> }, {}, {}, O>;
+    spec: { input: I; output: O; up: (oldInput: z.infer<I>) => unknown },
+  ): VersionedBuilder<
+    { [K in N]: { input: z.infer<I>; output: z.infer<O> } },
+    never,
+    O
+  >;
   function version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
-    spec: { input: I; output: O }
+    spec: { input: I; output: O },
   ): VersionedBuilder<
-    { [K in N]: z.infer<I> },
-    { [K in N]: z.infer<I> },
-    { [K in N]: z.infer<O> },
+    { [K in N]: { input: z.infer<I>; output: z.infer<O> } },
+    N,
     O
   >;
   function version(
     name: string,
-    spec: VersionSpec<z.ZodType, z.ZodType>
+    spec: VersionSpec<z.ZodType, z.ZodType>,
   ): unknown {
     return build({ [name]: spec }, spec);
   }
