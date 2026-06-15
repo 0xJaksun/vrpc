@@ -139,7 +139,18 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
     O
   >;
 } {
-  type Spec = { input: z.ZodType; output?: z.ZodType; up?: unknown };
+  type Spec = {
+    input: z.ZodType;
+    output?: z.ZodType;
+    up?: (oldInput: unknown) => unknown;
+  };
+
+  /** Stamp the spec with `kind` so the runtime can discriminate cleanly. */
+  function stamp(spec: Spec): Record<string, unknown> {
+    return spec.up
+      ? { kind: "walker", input: spec.input, up: spec.up }
+      : { kind: "terminal", input: spec.input, output: spec.output };
+  }
 
   function build(
     versions: Record<string, unknown>,
@@ -152,7 +163,11 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
       .meta({ _vrpcVersions: versions });
 
     const version = (name: string, spec: Spec) =>
-      build({ ...versions, [name]: spec }, spec.input, spec.output ?? output);
+      build(
+        { ...versions, [name]: stamp(spec) },
+        spec.input,
+        spec.output ?? output
+      );
 
     // Wrap .mutation / .query so they accept a per-version handlers map and
     // dispatch on the resolved terminal version (set by middleware on ctx).
@@ -198,7 +213,7 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
     O
   >;
   function version(name: string, spec: Spec): unknown {
-    return build({ [name]: spec }, spec.input, spec.output ?? null);
+    return build({ [name]: stamp(spec) }, spec.input, spec.output ?? null);
   }
 
   return { version };
