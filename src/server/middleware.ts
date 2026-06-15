@@ -6,21 +6,22 @@ const VERSION_HEADER = "x-vrpc-version";
 const headersSchema = z.record(z.string(), z.unknown());
 const versionHeaderSchema = z.string().min(1);
 
-type MiddlewareParams = {
-  ctx: Record<string, unknown>;
+type MiddlewareCtx = Record<string, unknown>;
+
+type ResolvedRequest = {
+  ctx: MiddlewareCtx;
   input: unknown;
-  meta?: { _vrpcVersions?: VersionsMeta };
-  next: (args: {
-    ctx: Record<string, unknown>;
-    input: unknown;
-  }) => Promise<unknown>;
 };
 
-export async function vrpcMiddleware(params: MiddlewareParams) {
+export function resolveVersionedRequest(params: {
+  ctx: MiddlewareCtx;
+  input: unknown;
+  meta?: { _vrpcVersions?: VersionsMeta };
+}): ResolvedRequest {
   const versions = params.meta?._vrpcVersions;
 
   // No version map → vanilla tRPC procedure. Pass through untouched.
-  if (!versions) return params.next({ ctx: params.ctx, input: params.input });
+  if (!versions) return { ctx: params.ctx, input: params.input };
 
   // Pin precedence: explicit header → fallback to latest terminal.
   const pin =
@@ -40,16 +41,16 @@ export async function vrpcMiddleware(params: MiddlewareParams) {
     });
   }
 
-  return params.next({
+  return {
     ctx: { ...params.ctx, _vrpcVersion: resolved.value.terminal },
     input: resolved.value.input,
-  });
+  };
 }
 
 /** Last terminal entry in declaration order. */
 function latestTerminal(versions: VersionsMeta): string | undefined {
   return Object.entries(versions)
-    .filter(([_key, value]) => value.kind === "terminal")
+    .filter(([, value]) => value.kind === "terminal")
     .at(-1)?.[0];
 }
 

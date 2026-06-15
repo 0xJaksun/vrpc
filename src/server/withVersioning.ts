@@ -4,8 +4,9 @@ import type {
   TRPCQueryProcedure,
 } from "@trpc/server";
 import type { z } from "zod";
+import { resolveVersionedRequest } from "./middleware";
 
-type AnyProcedureBuilder = ReturnType<(typeof initTRPC)["create"]>["procedure"];
+type AnyT = ReturnType<(typeof initTRPC)["create"]>;
 
 /** Walker: declares `input` + `up`. No `output`. Walks input forward one hop. */
 type WalkerSpec<I extends z.ZodType, NextInput = unknown> = {
@@ -120,7 +121,7 @@ type WalkerPendingBuilder<
   >;
 };
 
-export function withVersioning(procedure: AnyProcedureBuilder): {
+export function withVersioning(t: AnyT): {
   version<N extends string, I extends z.ZodType, NextInput>(
     name: N,
     spec: WalkerSpec<I, NextInput>
@@ -157,7 +158,16 @@ export function withVersioning(procedure: AnyProcedureBuilder): {
     input: z.ZodType,
     output: z.ZodType | null
   ) {
-    const built = procedure
+    const built = t.procedure
+      .use(async (opts) => {
+        return opts.next(
+          resolveVersionedRequest({
+            ctx: opts.ctx,
+            input: opts.input,
+            meta: opts.meta,
+          })
+        );
+      })
       .input(input)
       .output(output ?? (input as never))
       .meta({ _vrpcVersions: versions });
