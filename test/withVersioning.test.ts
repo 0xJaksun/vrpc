@@ -7,8 +7,6 @@ describe("withVersioning chained .version()", () => {
   const t = initTRPC.create();
   const procedure = withVersioning(t.procedure);
 
-  const x = t.procedure.input(z.object({})).query(() => {});
-
   test("chains a single .version() into .mutation()", () => {
     const createUser = procedure
       .version("v1", {
@@ -24,7 +22,6 @@ describe("withVersioning chained .version()", () => {
     const createUser = procedure
       .version("v1", {
         input: z.object({ name: z.string() }),
-        output: z.object({ id: z.string() }),
         up: (old) => ({ ...old, email: "unknown" }),
       })
       .version("v2", {
@@ -57,8 +54,7 @@ describe("withVersioning chained .version()", () => {
     const createUser = procedure
       .version("v1", {
         input: z.object({ name: z.string() }),
-        output: z.object({ id: z.string() }),
-        up: (old) => old,
+        up: (old) => ({ ...old, email: "x" }),
       })
       .version("v2", {
         input: z.object({ name: z.string(), email: z.string() }),
