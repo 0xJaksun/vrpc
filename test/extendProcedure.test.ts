@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
-import { extendProcedure } from "../src/extendProcedure";
+import { extendProcedure } from "../src/server/extendProcedure";
 
 describe("extendProcedure", () => {
   const t = initTRPC.create();
@@ -39,7 +39,7 @@ describe("extendProcedure", () => {
 
   test("middleware composes with versioning (.use().version().mutation())", () => {
     const authedProcedure = publicProcedure.use(({ next }) =>
-      next({ ctx: { user: { id: "u1" } } }),
+      next({ ctx: { user: { id: "u1" } } })
     );
 
     const createPost = authedProcedure

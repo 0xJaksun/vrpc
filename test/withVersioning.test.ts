@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
-import { withVersioning } from "../src/withVersioning";
+import { withVersioning } from "../src/server/withVersioning";
 
 describe("withVersioning chained .version()", () => {
   const t = initTRPC.create();
