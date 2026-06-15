@@ -24,18 +24,14 @@ describe("extendProcedure", () => {
     expect(createPost).toBeDefined();
   });
 
-  test("versioned chain works (.version().mutation())", () => {
+  test("versioned chain with per-version handlers map", () => {
     const createUser = publicProcedure
       .version("v1", {
         input: z.object({ name: z.string() }),
         output: z.object({ id: z.string() }),
       })
-      .mutation(({ input, version }) => {
-        // version: "v1", input: { name: string }
-        if (version === "v1") {
-          return { id: input.name };
-        }
-        return { id: "fallback" };
+      .mutation({
+        v1: ({ input }) => ({ id: input.name }),
       });
 
     expect(createUser).toBeDefined();
@@ -43,7 +39,7 @@ describe("extendProcedure", () => {
 
   test("middleware composes with versioning (.use().version().mutation())", () => {
     const authedProcedure = publicProcedure.use(({ next }) =>
-      next({ ctx: { user: { id: "u1" } } })
+      next({ ctx: { user: { id: "u1" } } }),
     );
 
     const createPost = authedProcedure
@@ -51,11 +47,8 @@ describe("extendProcedure", () => {
         input: z.object({ title: z.string() }),
         output: z.object({ id: z.string() }),
       })
-      .mutation(({ input, version }) => {
-        if (version === "v1") {
-          return { id: input.title };
-        }
-        return { id: "fallback" };
+      .mutation({
+        v1: ({ input }) => ({ id: input.title }),
       });
 
     expect(createPost).toBeDefined();
@@ -69,17 +62,14 @@ describe("extendProcedure", () => {
         input: z.object({ name: z.string() }),
         output: z.object({ id: z.string() }),
       })
-      .mutation(({ input, version }) => {
-        if (version === "v1") {
-          return { id: input.name };
-        }
-        return { id: "fallback" };
+      .mutation({
+        v1: ({ input }) => ({ id: input.name }),
       });
 
     expect(createUser).toBeDefined();
   });
 
-  test("walker→terminal chain works", () => {
+  test("walker→terminal chain with handlers map", () => {
     const createUser = publicProcedure
       .version("v1", {
         input: z.object({ name: z.string() }),
@@ -89,11 +79,8 @@ describe("extendProcedure", () => {
         input: z.object({ name: z.string(), email: z.string() }),
         output: z.object({ id: z.string(), email: z.string() }),
       })
-      .mutation(({ input, version }) => {
-        if (version === "v2") {
-          return { id: "1", email: input.email };
-        }
-        return { id: "fallback", email: "fallback" };
+      .mutation({
+        v2: ({ input }) => ({ id: "1", email: input.email }),
       });
 
     expect(createUser).toBeDefined();
