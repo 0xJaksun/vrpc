@@ -1,27 +1,47 @@
 {
-  "name": "vrpc",
+  "name": "vtrpc",
   "version": "0.0.1",
-  "description": "Versioning layer for typed RPC. Pin a client to a version, walk back through each procedure's timeline.",
+  "description": "Versioning layer for tRPC. Pin a client to a version, walk inputs forward through each procedure's timeline.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "build": "tsup src/index.ts --format esm --dts --clean",
+    "prepublishOnly": "pnpm typecheck && pnpm test && pnpm build"
   },
   "keywords": [
     "trpc",
     "rpc",
     "versioning",
     "typescript",
-    "api"
+    "api",
+    "schema"
   ],
   "author": "Jackson Booth",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/0xJaksun/vrpc"
+  },
   "peerDependencies": {
-    "@trpc/server": "^11.0.0",
     "@trpc/client": "^11.0.0",
+    "@trpc/server": "^11.0.0",
     "zod": "^3.22.0"
   },
   "peerDependenciesMeta": {
@@ -30,8 +50,9 @@
     }
   },
   "devDependencies": {
-    "@trpc/server": "^11.0.0",
     "@trpc/client": "^11.0.0",
+    "@trpc/server": "^11.0.0",
+    "tsup": "^8.5.1",
     "typescript": "^5.4.0",
     "vitest": "^1.0.0",
     "zod": "^3.22.0"
