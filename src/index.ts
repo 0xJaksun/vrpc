@@ -3,4 +3,5 @@
  */
 
 export { withVersioning } from "./server/withVersioning";
-export { createVRPCClient } from "./client/createClient";
+export { createVRPCClient, type VRPCClient } from "./client/createClient";
+export type { Pin, PinRouter } from "./types";

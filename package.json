@@ -1,6 +1,6 @@
 {
   "name": "versionrpc",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Versioning layer for tRPC. Pin a client to a version, walk inputs forward through each procedure's timeline.",
   "type": "module",
   "main": "./dist/index.js",
