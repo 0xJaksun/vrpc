@@ -37,7 +37,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/0xJaksun/vrpc"
+    "url": "git+https://github.com/0xJaksun/vrpc.git"
   },
   "peerDependencies": {
     "@trpc/client": "^11.0.0",
