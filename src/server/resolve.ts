@@ -34,6 +34,16 @@ export function resolveVersion(
     };
   }
 
+  const pinned = versions[pin].input.safeParse(initialInput);
+  if (!pinned.success) {
+    return {
+      ok: false,
+      error: new VersionResolveError(
+        `input does not match schema for version "${pin}": ${pinned.error.message}`
+      ),
+    };
+  }
+
   const order = Object.keys(versions);
 
   return order
@@ -56,6 +66,6 @@ export function resolveVersion(
           value: { terminal: name, input: prev.up(acc.value.input) },
         };
       },
-      { ok: true, value: { terminal: pin, input: initialInput } }
+      { ok: true, value: { terminal: pin, input: pinned.data } }
     );
 }

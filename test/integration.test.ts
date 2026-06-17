@@ -1,11 +1,7 @@
+import { test, expect } from "vitest";
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { withVersioning } from "../src/server/withVersioning";
-import { createVRPCClient } from "../src/client";
-
-/* ------------------------------------------------------------------ */
-/* Build the server                                                    */
-/* ------------------------------------------------------------------ */
 
 const t = initTRPC.create();
 const procedure = withVersioning(t);
@@ -29,17 +25,52 @@ const createUser = procedure
   })
   .mutation({
     v2: ({ input }) => ({ id: "1", email: input.email }),
-    v3: ({ input }) => ({ id: "1", email: input.email, org: input.org }),
+    v3: ({ input }) => ({
+      id: "1",
+      email: input.email,
+      org: input.org,
+    }),
   });
 
 const appRouter = t.router({ createUser });
 
-type AppRouter = typeof appRouter;
+test("v1 pin walks forward to v2 handler", async () => {
+  const caller = appRouter.createCaller({
+    headers: { "x-vrpc-version": "v1" },
+  });
+  const result = await caller.createUser({ name: "balc" });
+  expect(result).toEqual({ id: "1", email: "unknown@example.com" });
+});
 
-/* ------------------------------------------------------------------ */
-/* Helpers                                                             */
-/* ------------------------------------------------------------------ */
+test("v2 pin lands directly on v2 handler", async () => {
+  const caller = appRouter.createCaller({
+    headers: { "x-vrpc-version": "v2" },
+  });
+  const result = await caller.createUser({
+    name: "balc",
+    email: "balc@x.com",
+  });
+  expect(result).toEqual({ id: "1", email: "balc@x.com" });
+});
 
-const x = createVRPCClient<AppRouter>({ version: "v1", url: "localhost:3000" });
+test("v3 pin lands directly on v3 handler", async () => {
+  const caller = appRouter.createCaller({
+    headers: { "x-vrpc-version": "v3" },
+  });
+  const result = await caller.createUser({
+    name: "balc",
+    email: "balc@x.com",
+    org: "acme",
+  });
+  expect(result).toEqual({ id: "1", email: "balc@x.com", org: "acme" });
+});
 
-x.createUser.mutate({ name: "balc" });
+test("no pin falls back to latest terminal (v3)", async () => {
+  const caller = appRouter.createCaller({ headers: {} });
+  const result = await caller.createUser({
+    name: "balc",
+    email: "balc@x.com",
+    org: "acme",
+  });
+  expect(result).toEqual({ id: "1", email: "balc@x.com", org: "acme" });
+});

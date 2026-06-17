@@ -3,7 +3,7 @@ import type {
   TRPCMutationProcedure,
   TRPCQueryProcedure,
 } from "@trpc/server";
-import type { z } from "zod";
+import { z } from "zod";
 import { resolveVersionedRequest } from "./middleware";
 
 type AnyT = ReturnType<(typeof initTRPC)["create"]>;
@@ -121,7 +121,7 @@ type WalkerPendingBuilder<
   >;
 };
 
-export function withVersioning(t: AnyT): {
+export function withVersioning(t: AnyT): AnyT["procedure"] & {
   version<N extends string, I extends z.ZodType, NextInput>(
     name: N,
     spec: WalkerSpec<I, NextInput>
@@ -153,31 +153,23 @@ export function withVersioning(t: AnyT): {
       : { kind: "terminal", input: spec.input, output: spec.output };
   }
 
-  function build(
-    versions: Record<string, unknown>,
-    input: z.ZodType,
-    output: z.ZodType | null
-  ) {
+  function build(versions: Record<string, unknown>, output: z.ZodType | null) {
     const built = t.procedure
       .use(async (opts) => {
+        const rawInput = await opts.getRawInput();
         return opts.next(
           resolveVersionedRequest({
             ctx: opts.ctx,
-            input: opts.input,
+            input: rawInput,
             meta: opts.meta,
           })
         );
       })
-      .input(input)
-      .output(output ?? (input as never))
+      .input(z.unknown())
       .meta({ _vrpcVersions: versions });
 
     const version = (name: string, spec: Spec) =>
-      build(
-        { ...versions, [name]: stamp(spec) },
-        spec.input,
-        spec.output ?? output
-      );
+      build({ ...versions, [name]: stamp(spec) }, spec.output ?? output);
 
     // Wrap .mutation / .query so they accept a per-version handlers map and
     // dispatch on the resolved terminal version (set by middleware on ctx).
@@ -196,11 +188,14 @@ export function withVersioning(t: AnyT): {
         return handler({ input: opts.input });
       };
 
+    const originalMutation = built.mutation.bind(built);
+    const originalQuery = built.query.bind(built);
+
     const mutation = (handlers: Record<string, (args: unknown) => unknown>) =>
-      built.mutation(wrapHandlers(handlers));
+      originalMutation(wrapHandlers(handlers));
 
     const query = (handlers: Record<string, (args: unknown) => unknown>) =>
-      built.query(wrapHandlers(handlers));
+      originalQuery(wrapHandlers(handlers));
 
     return Object.assign(built, { version, mutation, query });
   }
@@ -223,8 +218,8 @@ export function withVersioning(t: AnyT): {
     O
   >;
   function version(name: string, spec: Spec): unknown {
-    return build({ [name]: stamp(spec) }, spec.input, spec.output ?? null);
+    return build({ [name]: stamp(spec) }, spec.output ?? null);
   }
 
-  return { version };
+  return Object.assign(t.procedure, { version }) as never;
 }
