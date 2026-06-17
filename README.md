@@ -1,4 +1,4 @@
-# vtrpc
+# versionrpc
 
 Versioning for [tRPC](https://trpc.io). Clients pin a version, the server walks old inputs forward to today's handler.
 
@@ -27,7 +27,7 @@ createUserV3
 
 By month six the handlers have drifted from each other. By month nine you're scared to delete `V1` because something must still be using it but nobody knows what.
 
-vtrpc lets you write one handler and describe how older shapes flow into it.
+versionrpc lets you write one handler and describe how older shapes flow into it.
 
 ## Model
 
@@ -57,7 +57,7 @@ v1 client sends { name }
 ## Install
 
 ```bash
-pnpm add vtrpc @trpc/server @trpc/client zod
+pnpm add versionrpc @trpc/server @trpc/client zod
 ```
 
 Requires `@trpc/server ^11`, `zod ^3`. `@trpc/client ^11` only if you use the client.
@@ -69,7 +69,7 @@ Requires `@trpc/server ^11`, `zod ^3`. `@trpc/client ^11` only if you use the cl
 ```ts
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
-import { withVersioning } from "vtrpc";
+import { withVersioning } from "versionrpc";
 
 const t = initTRPC.create();
 const procedure = withVersioning(t);
@@ -133,7 +133,7 @@ If you skip this, the server falls back to the latest terminal and pinning won't
 ### Pin a client
 
 ```ts
-import { createVRPCClient } from "vtrpc";
+import { createVRPCClient } from "versionrpc";
 import type { AppRouter } from "./server";
 
 const client = createVRPCClient<AppRouter, "v1">({
@@ -215,7 +215,7 @@ Add a v3 terminal and the compiler tells you the handler map is missing a `v3` e
 
 ## Trade-offs
 
-vtrpc has opinions. They aren't free.
+versionrpc has opinions. They aren't free.
 
 **Input narrows per pin. Output is the resolved terminal's.** A v1 client sends v1's input and gets v2's output. There are no down-migrations that map v2's response back to v1's shape. If you need that, transform on the client.
 
