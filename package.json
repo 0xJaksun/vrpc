@@ -29,9 +29,16 @@
     "trpc",
     "rpc",
     "versioning",
-    "typescript",
+    "versioned",
+    "migration",
+    "schema",
+    "schema-evolution",
+    "backward-compatibility",
     "api",
-    "schema"
+    "typescript",
+    "zod",
+    "procedure",
+    "pin"
   ],
   "author": "Jackson Booth",
   "license": "MIT",
