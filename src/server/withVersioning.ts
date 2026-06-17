@@ -45,11 +45,12 @@ export interface VersionedMutation<
     string,
     { input: unknown } | { input: unknown; output: unknown }
   >,
-  T extends string
+  T extends string,
+  Order extends readonly (keyof V & string)[]
 > extends TRPCMutationProcedure<{
     input: V[keyof V]["input"];
     output: Extract<V[T & keyof V], { output: unknown }>["output"];
-    meta: { versions: V; terminalVersions: T };
+    meta: { versions: V; terminalVersions: T; order: Order };
   }> {}
 
 export interface VersionedQuery<
@@ -57,18 +58,20 @@ export interface VersionedQuery<
     string,
     { input: unknown } | { input: unknown; output: unknown }
   >,
-  T extends string
+  T extends string,
+  Order extends readonly (keyof V & string)[]
 > extends TRPCQueryProcedure<{
     input: V[keyof V]["input"];
     output: Extract<V[T & keyof V], { output: unknown }>["output"];
-    meta: { versions: V; terminalVersions: T };
+    meta: { versions: V; terminalVersions: T; order: Order };
   }> {}
 
 /** Has ≥1 terminal — can finalize. */
 type TerminalBuilder<
   V extends Record<string, { input: unknown }>,
   T extends string,
-  O extends z.ZodType
+  O extends z.ZodType,
+  Order extends readonly (keyof V & string)[]
 > = {
   version<N extends string, I extends z.ZodType, NextInput>(
     name: N,
@@ -77,7 +80,8 @@ type TerminalBuilder<
     V & { [K in N]: { input: z.infer<I> } },
     T,
     O,
-    NextInput
+    NextInput,
+    readonly [...Order, N]
   >;
   version<N extends string, I extends z.ZodType, O2 extends z.ZodType>(
     name: N,
@@ -85,10 +89,13 @@ type TerminalBuilder<
   ): TerminalBuilder<
     V & { [K in N]: { input: z.infer<I>; output: z.infer<O2> } },
     T | N,
-    O2
+    O2,
+    readonly [...Order, N]
   >;
-  mutation(handlers: Handlers<V, T>): VersionedMutation<Prettify<V>, T>;
-  query(handlers: Handlers<V, T>): VersionedQuery<Prettify<V>, T>;
+  mutation(
+    handlers: Handlers<V, T>
+  ): VersionedMutation<Prettify<V>, T, Order>;
+  query(handlers: Handlers<V, T>): VersionedQuery<Prettify<V>, T, Order>;
 };
 
 /** Pending walker — next `.version()` input MUST satisfy NextInput. */
@@ -96,7 +103,8 @@ type WalkerPendingBuilder<
   V extends Record<string, { input: unknown }>,
   T extends string,
   O extends z.ZodType,
-  NextInput
+  NextInput,
+  Order extends readonly (keyof V & string)[]
 > = {
   version<N extends string, I extends z.ZodType, NextNext>(
     name: N,
@@ -107,7 +115,8 @@ type WalkerPendingBuilder<
     V & { [K in N]: { input: z.infer<I> } },
     T,
     O,
-    NextNext
+    NextNext,
+    readonly [...Order, N]
   >;
   version<N extends string, I extends z.ZodType, O2 extends z.ZodType>(
     name: N,
@@ -117,7 +126,8 @@ type WalkerPendingBuilder<
   ): TerminalBuilder<
     V & { [K in N]: { input: z.infer<I>; output: z.infer<O2> } },
     [T] extends [never] ? N : T | N,
-    O2
+    O2,
+    readonly [...Order, N]
   >;
 };
 
@@ -129,7 +139,8 @@ export function withVersioning(t: AnyT): AnyT["procedure"] & {
     { [K in N]: { input: z.infer<I> } },
     never,
     z.ZodType,
-    NextInput
+    NextInput,
+    readonly [N]
   >;
   version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
@@ -137,7 +148,8 @@ export function withVersioning(t: AnyT): AnyT["procedure"] & {
   ): TerminalBuilder<
     { [K in N]: { input: z.infer<I>; output: z.infer<O> } },
     N,
-    O
+    O,
+    readonly [N]
   >;
 } {
   type Spec = {
@@ -166,7 +178,7 @@ export function withVersioning(t: AnyT): AnyT["procedure"] & {
         );
       })
       .input(z.unknown())
-      .meta({ _vrpcVersions: versions });
+      .meta({ _vrpcVersions: versions, _vrpcOrder: Object.keys(versions) });
 
     const version = (name: string, spec: Spec) =>
       build({ ...versions, [name]: stamp(spec) }, spec.output ?? output);
@@ -207,7 +219,8 @@ export function withVersioning(t: AnyT): AnyT["procedure"] & {
     { [K in N]: { input: z.infer<I> } },
     never,
     z.ZodType,
-    NextInput
+    NextInput,
+    readonly [N]
   >;
   function version<N extends string, I extends z.ZodType, O extends z.ZodType>(
     name: N,
@@ -215,7 +228,8 @@ export function withVersioning(t: AnyT): AnyT["procedure"] & {
   ): TerminalBuilder<
     { [K in N]: { input: z.infer<I>; output: z.infer<O> } },
     N,
-    O
+    O,
+    readonly [N]
   >;
   function version(name: string, spec: Spec): unknown {
     return build({ [name]: stamp(spec) }, spec.output ?? null);

@@ -1,7 +1,8 @@
-import { test, expect } from "vitest";
+import { test, expect, expectTypeOf } from "vitest";
 import { initTRPC } from "@trpc/server";
 import { z } from "zod";
 import { withVersioning } from "../src/server/withVersioning";
+import { createVRPCClient } from "../src/client/createClient";
 
 const t = initTRPC.create();
 const procedure = withVersioning(t);
@@ -33,6 +34,34 @@ const createUser = procedure
   });
 
 const appRouter = t.router({ createUser });
+type AppRouter = typeof appRouter;
+
+test("client narrows .mutate input to pinned version and returns resolved output", () => {
+  const v1Client = createVRPCClient<AppRouter, "v1">({
+    version: "v1",
+    url: "http://localhost:3000/trpc",
+  });
+  expectTypeOf(v1Client.createUser.mutate)
+    .parameter(0)
+    .toEqualTypeOf<{ name: string }>();
+  expectTypeOf(v1Client.createUser.mutate).returns.resolves.toEqualTypeOf<{
+    id: string;
+    email: string;
+  }>();
+
+  const v3Client = createVRPCClient<AppRouter, "v3">({
+    version: "v3",
+    url: "http://localhost:3000/trpc",
+  });
+  expectTypeOf(v3Client.createUser.mutate)
+    .parameter(0)
+    .toEqualTypeOf<{ name: string; email: string; org: string }>();
+  expectTypeOf(v3Client.createUser.mutate).returns.resolves.toEqualTypeOf<{
+    id: string;
+    email: string;
+    org: string;
+  }>();
+});
 
 test("v1 pin walks forward to v2 handler", async () => {
   const caller = appRouter.createCaller({
