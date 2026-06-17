@@ -1,4 +1,6 @@
-// vrpc - versioning layer for typed RPC
-// Public API will be exported from here.
+/**
+ * vrpc — versioning layer for typed RPC.
+ */
 
-export {};
+export { withVersioning } from "./server/withVersioning";
+export { createVRPCClient } from "./client/createClient";
